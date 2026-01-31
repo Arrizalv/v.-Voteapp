@@ -116,16 +116,4 @@ Cek kembali `CONTRACT_ABI` di `constants.js`. Pastikan format JSON valid dan men
 * **Tailwind tidak muncul**:
 Pastikan file `src/index.css` sudah berisi `@tailwind base; ...` dan terimport di `main.jsx`.
 
----
-
-## 👨‍💻 Author
-
-Project ini dibuat untuk memenuhi tugas UAS Pemrograman Web Lanjut / Blockchain.
-
-* **Nama:** [Nama Lu]
-* **NIM:** [NIM Lu]
-* **Kampus:** [Kampus Lu]
-
----
-
 Made with 💙 and ☕ code.
