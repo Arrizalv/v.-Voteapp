@@ -3,22 +3,46 @@ import { ethers } from 'ethers';
 import axios from 'axios';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, ETHERSCAN_API_KEY } from './constants';
 
+// --- DATA DUMMY BIAR KEREN ---
+const DUMMY_HISTORY = [
+  { hash: "0x71a...9b2", from: "0xIsyana...Wrld", to: "0xVoting...Ctrct", value: "0.05", time: "2 mins ago" },
+  { hash: "0x82b...3c1", from: "0xElon...Msk", to: "0xVoting...Ctrct", value: "0.12", time: "5 mins ago" },
+  { hash: "0x93c...4d5", from: "0xSatoshi...Nkm", to: "0xVoting...Ctrct", value: "1.00", time: "1 hour ago" },
+];
+
+// Kita mapping ID Smart Contract (1 & 2) ke Tampilan Keren
+const CANDIDATE_META = {
+  1: { 
+    role: "AI OVERLORD", 
+    image: "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Felix", 
+    desc: "Menggantikan dosen dengan AI canggih." 
+  },
+  2: { 
+    role: "CYBER PUNK", 
+    image: "https://api.dicebear.com/9.x/avataaars/svg?seed=Aneka&backgroundColor=b6e3f4", 
+    desc: "Gratis token crypto untuk semua mahasiswa." 
+  }
+};
+
 function App() {
   const [account, setAccount] = useState(null);
-  const [candidates, setCandidates] = useState([]);
+  // Default isi dummy biar gak kosong pas awal load
+  const [candidates, setCandidates] = useState([
+    { id: 1, name: "Alpha Zero (Loading...)", voteCount: 120, ...CANDIDATE_META[1] },
+    { id: 2, name: "Beta Prime (Loading...)", voteCount: 95, ...CANDIDATE_META[2] }
+  ]);
   const [contract, setContract] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(DUMMY_HISTORY);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  // --- LOGIC BAGIAN ATAS SAMA PERSIS KAYA SEBELUMNYA ---
-  
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         setAccount(accounts[0]);
         initializeContract(accounts[0]);
+        // Kita gabungin dummy history sama real history nanti
         fetchTransactionHistory(accounts[0]);
       } catch (error) {
         console.error("User reject connection", error);
@@ -29,21 +53,31 @@ function App() {
   };
 
   const initializeContract = async (currentAccount) => {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const votingContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    setContract(votingContract);
-    fetchCandidates(votingContract);
+    try {
+      // Ethers v6 Syntax
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const votingContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      setContract(votingContract);
+      fetchCandidates(votingContract);
+    } catch (err) {
+      console.error("Error init contract", err);
+    }
   };
 
   const fetchCandidates = async (votingContract) => {
     try {
       const data = await votingContract.getAllCandidates();
-      const formattedData = data.map((candidate) => ({
-        id: Number(candidate.id),
-        name: candidate.name,
-        voteCount: Number(candidate.voteCount),
-      }));
+      // Gabungin data Real Blockchain dengan Metadata Keren kita
+      const formattedData = data.map((candidate) => {
+        const id = Number(candidate.id);
+        return {
+          id: id,
+          name: candidate.name, // Nama asli dari contract (misal "Calon A")
+          voteCount: Number(candidate.voteCount),
+          ...CANDIDATE_META[id] // Timpa dengan gambar & role keren
+        };
+      });
       setCandidates(formattedData);
     } catch (error) {
       console.error("Gagal ambil kandidat", error);
@@ -52,10 +86,19 @@ function App() {
 
   const fetchTransactionHistory = async (address) => {
     const url = `https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+    
     try {
       const response = await axios.get(url);
       if (response.data.status === "1") {
-        setHistory(response.data.result.slice(0, 5));
+        const realHistory = response.data.result.slice(0, 5).map(tx => ({
+          hash: tx.hash,
+          from: tx.from,
+          to: tx.to,
+          value: ethers.formatEther(tx.value),
+          time: "Just now (Real)"
+        }));
+        // GABUNGIN Real History di atas, Dummy di bawah
+        setHistory([...realHistory, ...DUMMY_HISTORY]);
       }
     } catch (error) {
       console.error("Gagal ambil history", error);
@@ -66,143 +109,155 @@ function App() {
     if (!contract) return;
     try {
       setLoading(true);
-      setStatus("⏳ Lagi ngirim transaksi ke blockchain...");
+      setStatus("⏳ INITIALIZING NEURAL LINK...");
       
       const tx = await contract.vote(id);
-      setStatus("🚀 Transaksi dikirim! Nunggu konfirmasi...");
+      setStatus("🚀 BROADCASTING TO BLOCKCHAIN...");
       
       await tx.wait();
-      setStatus("✅ Vote Berhasil!");
+      setStatus("✅ VOTE CONFIRMED ON-CHAIN!");
       
       fetchCandidates(contract);
       setLoading(false);
+      setTimeout(() => setStatus(""), 5000);
     } catch (error) {
       console.error(error);
       if(error.reason) alert(error.reason);
-      else alert("Vote gagal / Ditolak user");
+      else alert("Transaction Failed");
       setLoading(false);
       setStatus("");
     }
   };
 
-  useEffect(() => {
-    if(window.ethereum && window.ethereum.selectedAddress) {
-       connectWallet();
-    }
-  }, []);
-
-  // --- BAGIAN UI DENGAN TAILWIND ---
-
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-5 font-sans">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-slate-950 text-cyan-50 font-sans selection:bg-cyan-500 selection:text-black">
+      
+      {/* BACKGROUND PARTICLES EFFECT (CSS ONLY) */}
+      <div className="fixed inset-0 z-0 opacity-20 pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #06b6d4 1px, transparent 0)', backgroundSize: '40px 40px' }}>
+      </div>
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-12">
         
         {/* HEADER */}
-        <header className="text-center mb-10">
-          <h1 className="text-4xl font-extrabold text-blue-800 mb-2">🗳️ E-Voting Blockchain</h1>
-          <p className="text-gray-600">Secure Voting System using Sepolia Testnet</p>
-        </header>
+        <header className="flex flex-col md:flex-row justify-between items-center mb-16 border-b border-cyan-900/50 pb-8">
+          <div>
+            <h1 className="text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
+              NEXUS VOTING
+            </h1>
+            <p className="text-cyan-400/60 mt-2 font-mono tracking-widest text-sm">DECENTRALIZED GOVERNANCE SYSTEM v.2.0</p>
+          </div>
 
-        {!account ? (
-          <div className="flex justify-center mt-20">
+          {!account ? (
             <button 
               onClick={connectWallet} 
-              className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105"
+              className="mt-6 md:mt-0 group relative px-8 py-3 bg-cyan-500/10 border border-cyan-500/50 text-cyan-400 font-bold uppercase tracking-widest hover:bg-cyan-500 hover:text-black transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.2)]"
             >
-              🦊 Connect MetaMask Wallet
+              <span className="absolute inset-0 w-full h-full border border-white/20 scale-105 opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300"></span>
+              [ Connect Interface ]
             </button>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {/* WALLET INFO */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
-              <span className="text-gray-500 text-sm">Connected Wallet:</span>
-              <span className="font-mono bg-gray-100 px-3 py-1 rounded text-blue-600 font-bold text-sm md:text-base truncate max-w-xs md:max-w-full">
-                {account}
-              </span>
+          ) : (
+            <div className="flex items-center gap-4 mt-4 md:mt-0 bg-slate-900/80 px-4 py-2 rounded-lg border border-cyan-500/30 backdrop-blur-md">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
+              <span className="font-mono text-sm text-cyan-300 truncate max-w-[150px]">{account}</span>
             </div>
+          )}
+        </header>
 
-            {/* STATUS NOTIFICATION */}
-            {status && (
-              <div className={`p-4 rounded-lg text-center font-semibold ${status.includes("Berhasil") ? "bg-green-100 text-green-700" : "bg-blue-50 text-blue-700"}`}>
-                {status}
-              </div>
-            )}
+        {/* STATUS BAR */}
+        {status && (
+          <div className="mb-8 p-4 bg-cyan-900/20 border-l-4 border-cyan-500 text-cyan-400 font-mono text-sm animate-pulse">
+            {">"} SYSTEM_MSG: {status}
+          </div>
+        )}
 
-            {/* VOTING SECTION */}
-            <section>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-l-4 border-blue-500 pl-3">Daftar Kandidat</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {candidates.map((candidate) => (
-                  <div key={candidate.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition duration-300 flex flex-col items-center text-center border border-gray-100">
-                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-3xl mb-4">
-                      👤
+        {/* MAIN GRID */}
+        <div className="grid lg:grid-cols-3 gap-12">
+          
+          {/* LEFT: CANDIDATES (2 Columns) */}
+          <div className="lg:col-span-2 space-y-8">
+            <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
+              <span className="text-cyan-500">01.</span> CANDIDATES
+              <div className="h-px flex-grow bg-gradient-to-r from-cyan-900 to-transparent"></div>
+            </h2>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {candidates.map((candidate) => (
+                <div key={candidate.id} className="group relative bg-slate-900 border border-slate-800 hover:border-cyan-500/50 transition-all duration-500 overflow-hidden rounded-xl">
+                  {/* Glow Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  
+                  <div className="p-6 relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="bg-slate-800 text-xs font-mono py-1 px-2 rounded text-cyan-400 border border-slate-700">ID: 0{candidate.id}</span>
+                      <div className="text-right">
+                         <span className="block text-3xl font-bold text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                           {candidate.voteCount}
+                         </span>
+                         <span className="text-xs text-slate-500 uppercase">Total Votes</span>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">{candidate.name}</h3>
-                    <div className="text-gray-500 mb-6">
-                      Total Suara: <span className="text-2xl font-bold text-blue-600">{candidate.voteCount}</span>
+
+                    <div className="flex items-center gap-4 mb-6">
+                      <img src={candidate.image} alt="avatar" className="w-16 h-16 rounded-full border-2 border-slate-700 group-hover:border-cyan-400 transition-colors bg-slate-800" />
+                      <div>
+                        <h3 className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors">{candidate.name}</h3>
+                        <p className="text-xs text-purple-400 font-bold tracking-wider">{candidate.role}</p>
+                      </div>
                     </div>
+                    
+                    <p className="text-slate-400 text-sm mb-6 border-l-2 border-slate-700 pl-3 italic">
+                      "{candidate.desc}"
+                    </p>
+
                     <button 
-                      onClick={() => handleVote(candidate.id)} 
-                      disabled={loading}
-                      className={`w-full py-2 px-4 rounded-lg font-semibold text-white transition ${
-                        loading 
-                          ? "bg-gray-400 cursor-not-allowed" 
-                          : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
-                      }`}
+                      onClick={() => handleVote(candidate.id)}
+                      disabled={loading || !account}
+                      className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded shadow-lg shadow-cyan-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                     >
-                      {loading ? 'Processing...' : 'VOTE SEKARANG'}
+                      {loading ? 'PROCESSING...' : 'INITIATE VOTE'}
                     </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* RIGHT: HISTORY (Terminal Style) */}
+          <div className="lg:col-span-1">
+             <h2 className="text-2xl font-bold flex items-center gap-3 text-white mb-8">
+              <span className="text-purple-500">02.</span> LIVE FEED
+              <div className="h-px flex-grow bg-gradient-to-r from-purple-900 to-transparent"></div>
+            </h2>
+
+            <div className="bg-black/50 border border-slate-800 rounded-xl p-4 font-mono text-xs h-[500px] overflow-y-auto custom-scrollbar shadow-inner">
+              <div className="text-slate-500 mb-4 border-b border-slate-800 pb-2">
+                // MONITORING NETWORK: SEPOLIA<br/>
+                // CONNECTION: SECURE<br/>
+                // SYNCING NODES... OK
+              </div>
+
+              <div className="space-y-3">
+                {history.map((tx, idx) => (
+                  <div key={idx} className="p-3 bg-slate-900/50 border-l-2 border-cyan-500/30 hover:bg-slate-800 hover:border-cyan-400 transition-all">
+                    <div className="flex justify-between text-slate-400 mb-1">
+                      <span>HASH</span>
+                      <a href={`https://sepolia.etherscan.io/tx/${tx.hash}`} target="_blank" className="text-cyan-500 hover:underline">{tx.hash.substring(0,8)}...</a>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-slate-500">VAL</span>
+                      <span className="text-purple-400">{tx.value} ETH</span>
+                    </div>
+                    <div className="text-right text-[10px] text-slate-600 mt-2">
+                      {tx.time || "Unknown"}
+                    </div>
                   </div>
                 ))}
               </div>
-            </section>
-
-            {/* HISTORY SECTION */}
-            <section>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-l-4 border-purple-500 pl-3">Riwayat Transaksi</h2>
-              <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tx Hash</th>
-                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
-                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Value (ETH)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {history.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" className="px-6 py-4 text-center text-gray-400">Belum ada riwayat transaksi.</td>
-                        </tr>
-                      ) : (
-                        history.map((tx) => (
-                          <tr key={tx.hash} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <a 
-                                href={`https://sepolia.etherscan.io/tx/${tx.hash}`} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="text-blue-500 hover:text-blue-700 hover:underline"
-                              >
-                                {tx.hash.substring(0, 10)}...
-                              </a>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{tx.from.substring(0, 6)}...</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{tx.to.substring(0, 6)}...</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-mono">{ethers.formatEther(tx.value)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
+            </div>
           </div>
-        )}
+
+        </div>
       </div>
     </div>
   );
