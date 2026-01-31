@@ -13,7 +13,7 @@ Nexus Voting adalah aplikasi **dApp (Decentralized Application)** berbasis block
 
 ## 📸 Screenshots
 
-![UI Preview](./Preview.png)
+![UI Preview](./Previews.png)
 *(Tampilan Dashboard Nexus Voting dengan integrasi MetaMask)*
 
 ---
